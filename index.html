@@ -118,10 +118,10 @@
       const WORD_LENGTH = TARGET_WORD.length;
 
       // Create a reference to current state to prevent stale closure issues in keydown listener
-      const stateRef = useRef({ currentGuess, currentRow, gameStatus, showInstructions, currentStage, isSubmitting });
+      const stateRef = useRef({ currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting });
       useEffect(() => {
-        stateRef.current = { currentGuess, currentRow, gameStatus, showInstructions, currentStage, isSubmitting };
-      }, [currentGuess, currentRow, gameStatus, showInstructions, currentStage, isSubmitting]);
+        stateRef.current = { currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting };
+      }, [currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting]);
 
       // Load statistics and stage from local storage on mount
       useEffect(() => {
@@ -274,7 +274,11 @@
 
       // Handle letter inputs
       const handleInputChar = (char) => {
-        if (stateRef.current.currentGuess.length < WORD_LENGTH) {
+        const { currentGuess, currentStage } = stateRef.current;
+        const activeTargetWord = STAGES[currentStage] || STAGES[0];
+        const activeWordLength = activeTargetWord.length;
+
+        if (currentGuess.length < activeWordLength) {
           playSound('pop');
           setCurrentGuess(prev => prev + char);
         }
@@ -288,7 +292,7 @@
       };
 
       const handleSubmitGuess = () => {
-        const { currentGuess, currentRow, gameStatus, showInstructions, isSubmitting } = stateRef.current;
+        const { currentGuess, guesses: currentGuesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting } = stateRef.current;
         
         // Prevent double submit triggers
         if (isSubmitting || gameStatus !== 'IN_PROGRESS' || showInstructions) return;
@@ -298,23 +302,26 @@
           document.activeElement.blur();
         }
 
-        // Strict validation: Don't progress unless word is fully completed!
-        if (currentGuess.length < WORD_LENGTH) {
+        const activeTargetWord = STAGES[currentStage] || STAGES[0];
+        const activeWordLength = activeTargetWord.length;
+
+        // Dynamic and fresh validation: Don't progress unless word is fully completed based on the current stage!
+        if (currentGuess.length < activeWordLength) {
           playSound('error');
           setShakeRow(currentRow);
           showToast('המילה קצרה מדי! חסרות אותיות');
           setTimeout(() => setShakeRow(null), 300);
-          return; // Strictly halts execution, does not use or skip attempt
+          return; // Strictly halts execution
         }
 
         setIsSubmitting(true);
 
-        // Process guess
-        const newGuesses = [...guesses];
+        // Process guess using fully fresh guesses state reference
+        const newGuesses = [...currentGuesses];
         newGuesses[currentRow] = currentGuess;
         setGuesses(newGuesses);
 
-        const isWin = currentGuess === TARGET_WORD;
+        const isWin = currentGuess === activeTargetWord;
         const isLose = !isWin && currentRow === MAX_ATTEMPTS - 1;
 
         setTimeout(() => {
@@ -353,7 +360,7 @@
             setCurrentRow(prev => prev + 1);
             setCurrentGuess('');
           }
-        }, WORD_LENGTH * 250); // wait for flip animations to complete
+        }, activeWordLength * 250); // wait for flip animations to complete based on fresh word length
       };
 
       // Keypress listener for physical keyboard (bound securely with refs)
@@ -424,8 +431,10 @@
       const keyboardRows = [
         ['ק', 'ר', 'א', 'ט', 'ו', 'ן', 'ם', 'פ'],
         ['ש', 'ד', 'ג', 'כ', 'ע', 'י', 'ח', 'ל', 'ך', 'ף'],
-        ['ז', 'ס', 'ב', 'ה', 'נ', 'מ', 'צ', 'ת', 'ץ']
+        ['ז', 'ס', 'ב', 'ה', 'נ', '做', 'צ', 'ת', 'ץ']
       ];
+      // Note: Replaced accidental foreign char with standard Hebrew letters
+      keyboardRows[2] = ['ז', 'ס', 'ב', 'ה', 'נ', 'מ', 'צ', 'ת', 'ץ'];
 
       // Helper to determine accurate letter statuses for a guessed word
       const getRowLetterStatuses = (guess) => {
@@ -530,8 +539,9 @@
             {/* Wordle Grid */}
             <div className="flex flex-col gap-1.5 md:gap-2 my-auto py-2">
               {guesses.map((guess, rIndex) => {
-                const isCurrentRow = rIndex === currentRow;
-                const isCompletedRow = rIndex < currentRow;
+                // Determine if this row is editable or evaluated
+                const isCurrentRow = rIndex === currentRow && gameStatus === 'IN_PROGRESS';
+                const isCompletedRow = rIndex < currentRow || (rIndex === currentRow && gameStatus !== 'IN_PROGRESS');
                 const rowShake = shakeRow === rIndex ? 'animate-shake' : '';
                 
                 // Get evaluated status for past rows
@@ -600,6 +610,7 @@
               {keyboardRows.map((row, rIdx) => (
                 <div key={rIdx} className="flex justify-center gap-1" dir="ltr">
                   {row.map((char) => {
+                    // Keyboard is always clean, neutral and dark
                     const bgClass = 'bg-slate-800 text-slate-100 hover:bg-slate-700 active:bg-slate-600 border border-slate-700/30';
 
                     return (
@@ -652,10 +663,13 @@
                   <AwardIcon size={36} />
                 </div>
                 <h2 className="text-2xl font-black text-emerald-400 mb-1">כל הכבוד! 🎉</h2>
-                <p className="text-slate-300 text-sm mb-6">
-                  ניחשתם נכון את המילה של שלב {currentStage + 1}! 
-                  כעת אתם מוכנים לעבור לשלב הבא.
-                </p>
+                
+                {/* Formatted feedback with perfect line breaks per sentence ending */}
+                <div className="text-slate-300 text-sm space-y-2 mb-6">
+                  <p>ניחשתם נכון את המילה של שלב {currentStage + 1}!</p>
+                  <p>כעת אתם מוכנים לעבור לשלב הבא.</p>
+                </div>
+
                 <button
                   onClick={(e) => handleKeyClick(e, handleNextStage)}
                   className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:from-emerald-600 active:to-teal-600 text-slate-950 font-black rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
@@ -674,13 +688,14 @@
                 <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 flex items-center justify-center rounded-full mb-4">
                   <AwardIcon size={36} />
                 </div>
-                <h2 className="text-2xl font-black text-emerald-400 mb-2">ניצחתם במשחק! 🏆</h2>
+                <h2 className="text-2xl font-black text-emerald-400 mb-4">ניצחתם במשחק! 🏆</h2>
                 
-                <div className="space-y-1 mb-6">
-                  <p className="text-slate-200 text-lg font-bold">
+                {/* Clean, separated sentence feedback structure */}
+                <div className="space-y-3 mb-8">
+                  <p className="text-slate-200 text-lg font-bold leading-relaxed">
                     זהיתם עוד תועלת למערכת Focus Crm!
                   </p>
-                  <p className="text-emerald-400 text-xl font-black">
+                  <p className="text-emerald-400 text-2xl font-black tracking-wide">
                     תמונה רחבה
                   </p>
                 </div>
@@ -704,7 +719,13 @@
                   <XIcon size={36} />
                 </div>
                 <h2 className="text-2xl font-black text-rose-400 mb-1">לא נורא!</h2>
-                <p className="text-slate-300 text-sm mb-6">הניסיונות נגמרו בשלב זה, אך תמיד אפשר לנסות שוב ולנצח.</p>
+                
+                {/* Formatted feedback with perfect line breaks per sentence ending */}
+                <div className="text-slate-300 text-sm space-y-2 mb-6">
+                  <p>הניסיונות נגמרו בשלב זה.</p>
+                  <p>אך תמיד אפשר לנסות שוב ולנצח!</p>
+                </div>
+
                 <button
                   onClick={(e) => handleKeyClick(e, handleResetCurrentStage)}
                   className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:from-emerald-600 active:to-teal-600 text-slate-950 font-black rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"

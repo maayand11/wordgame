@@ -57,7 +57,7 @@
 
   <!-- React Code with Inline SVG Icons for absolute reliability without external library dependencies -->
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect } = React;
 
     const STAGES = ["תמונה", "רחבה"];
 
@@ -116,12 +116,6 @@
 
       const TARGET_WORD = STAGES[currentStage] || STAGES[0];
       const WORD_LENGTH = TARGET_WORD.length;
-
-      // Create a reference to current state to prevent stale closure issues in keydown listener
-      const stateRef = useRef({ currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting });
-      useEffect(() => {
-        stateRef.current = { currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting };
-      }, [currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting]);
 
       // Load statistics and stage from local storage on mount
       useEffect(() => {
@@ -274,26 +268,20 @@
 
       // Handle letter inputs
       const handleInputChar = (char) => {
-        const { currentGuess, currentStage } = stateRef.current;
-        const activeTargetWord = STAGES[currentStage] || STAGES[0];
-        const activeWordLength = activeTargetWord.length;
-
-        if (currentGuess.length < activeWordLength) {
+        if (currentGuess.length < WORD_LENGTH) {
           playSound('pop');
           setCurrentGuess(prev => prev + char);
         }
       };
 
       const handleDeleteChar = () => {
-        if (stateRef.current.currentGuess.length > 0) {
+        if (currentGuess.length > 0) {
           playSound('click');
           setCurrentGuess(prev => prev.slice(0, -1));
         }
       };
 
       const handleSubmitGuess = () => {
-        const { currentGuess, guesses: currentGuesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting } = stateRef.current;
-        
         // Prevent double submit triggers
         if (isSubmitting || gameStatus !== 'IN_PROGRESS' || showInstructions) return;
 
@@ -302,11 +290,8 @@
           document.activeElement.blur();
         }
 
-        const activeTargetWord = STAGES[currentStage] || STAGES[0];
-        const activeWordLength = activeTargetWord.length;
-
         // Dynamic and fresh validation: Don't progress unless word is fully completed based on the current stage!
-        if (currentGuess.length < activeWordLength) {
+        if (currentGuess.length < WORD_LENGTH) {
           playSound('error');
           setShakeRow(currentRow);
           showToast('המילה קצרה מדי! חסרות אותיות');
@@ -316,12 +301,12 @@
 
         setIsSubmitting(true);
 
-        // Process guess using fully fresh guesses state reference
-        const newGuesses = [...currentGuesses];
+        // Process guess
+        const newGuesses = [...guesses];
         newGuesses[currentRow] = currentGuess;
         setGuesses(newGuesses);
 
-        const isWin = currentGuess === activeTargetWord;
+        const isWin = currentGuess === TARGET_WORD;
         const isLose = !isWin && currentRow === MAX_ATTEMPTS - 1;
 
         setTimeout(() => {
@@ -360,13 +345,12 @@
             setCurrentRow(prev => prev + 1);
             setCurrentGuess('');
           }
-        }, activeWordLength * 250); // wait for flip animations to complete based on fresh word length
+        }, WORD_LENGTH * 250); // wait for flip animations to complete based on word length
       };
 
-      // Keypress listener for physical keyboard (bound securely with refs)
+      // Keypress listener for physical keyboard (bound securely with direct dependencies to prevent stale closures)
       useEffect(() => {
         const handleKeyDown = (e) => {
-          const { gameStatus, showInstructions, isSubmitting } = stateRef.current;
           if (gameStatus !== 'IN_PROGRESS' || showInstructions || isSubmitting) return;
 
           const key = e.key;
@@ -388,7 +372,7 @@
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-      }, []);
+      }, [currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting, WORD_LENGTH]);
 
       // Move to Next Stage
       const handleNextStage = () => {
@@ -431,10 +415,8 @@
       const keyboardRows = [
         ['ק', 'ר', 'א', 'ט', 'ו', 'ן', 'ם', 'פ'],
         ['ש', 'ד', 'ג', 'כ', 'ע', 'י', 'ח', 'ל', 'ך', 'ף'],
-        ['ז', 'ס', 'ב', 'ה', 'נ', '做', 'צ', 'ת', 'ץ']
+        ['ז', 'ס', 'ב', 'ה', 'נ', 'מ', 'צ', 'ת', 'ץ']
       ];
-      // Note: Replaced accidental foreign char with standard Hebrew letters
-      keyboardRows[2] = ['ז', 'ס', 'ב', 'ה', 'נ', 'מ', 'צ', 'ת', 'ץ'];
 
       // Helper to determine accurate letter statuses for a guessed word
       const getRowLetterStatuses = (guess) => {
@@ -510,6 +492,7 @@
               </div>
             </div>
 
+            {/* Action controls in header */}
             <div className="flex items-center gap-2">
               <button 
                 onClick={(e) => handleKeyClick(e, handleResetCurrentStage)}

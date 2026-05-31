@@ -508,17 +508,6 @@
           {/* Game main Area */}
           <main className="flex-grow flex flex-col items-center justify-center p-4 max-w-lg mx-auto w-full gap-4">
             
-            {/* Game Stats Bar */}
-            <div className="flex justify-center gap-6 text-xs text-slate-400 bg-slate-900/40 px-4 py-2 rounded-xl border border-slate-800/60">
-              <div>שלב נוכחי: <span className="font-bold text-slate-200">{currentStage + 1}</span></div>
-              <div className="w-[1px] bg-slate-800"></div>
-              <div>משחקים: <span className="font-bold text-slate-200">{stats.played}</span></div>
-              <div className="w-[1px] bg-slate-800"></div>
-              <div>ניצחונות: <span className="font-bold text-emerald-400">{stats.won}</span></div>
-              <div className="w-[1px] bg-slate-800"></div>
-              <div>רצף: <span className="font-bold text-amber-400">{stats.streak} 🔥</span></div>
-            </div>
-
             {/* Wordle Grid */}
             <div className="flex flex-col gap-1.5 md:gap-2 my-auto py-2">
               {guesses.map((guess, rIndex) => {
@@ -674,7 +663,7 @@
                 <h2 className="text-2xl font-black text-emerald-400 mb-4">ניצחתם במשחק! 🏆</h2>
                 
                 {/* Clean, separated sentence feedback structure */}
-                <div className="space-y-3 mb-8">
+                <div className="space-y-3 mb-4">
                   <p className="text-slate-200 text-lg font-bold leading-relaxed">
                     זהיתם עוד תועלת למערכת Focus Crm!
                   </p>
@@ -682,14 +671,6 @@
                     תמונה רחבה
                   </p>
                 </div>
-
-                <button
-                  onClick={(e) => handleKeyClick(e, handleFullReset)}
-                  className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:from-emerald-600 active:to-teal-600 text-slate-950 font-black rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <RefreshCwIcon />
-                  <span>שחק שוב מהתחלה</span>
-                </button>
               </div>
             </div>
           )}

@@ -57,7 +57,7 @@
 
   <!-- React Code with Inline SVG Icons for absolute reliability without external library dependencies -->
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
 
     const STAGES = ["תמונה", "רחבה"];
 
@@ -101,7 +101,7 @@
     function App() {
       const MAX_ATTEMPTS = 5;
 
-      // Game States
+      // Game States - Always starts fresh at Stage 1 (0) on load/refresh
       const [currentStage, setCurrentStage] = useState(0);
       const [guesses, setGuesses] = useState(Array(MAX_ATTEMPTS).fill(''));
       const [currentGuess, setCurrentGuess] = useState('');
@@ -117,15 +117,17 @@
       const TARGET_WORD = STAGES[currentStage] || STAGES[0];
       const WORD_LENGTH = TARGET_WORD.length;
 
-      // Load statistics and stage from local storage on mount
+      // Create a reference to current state to prevent stale closure issues in keydown listener
+      const stateRef = useRef({ currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting });
+      useEffect(() => {
+        stateRef.current = { currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting };
+      }, [currentGuess, guesses, currentRow, gameStatus, showInstructions, currentStage, isSubmitting]);
+
+      // Load statistics from local storage on mount (Does NOT restore the stage index to force Stage 1 on load)
       useEffect(() => {
         const savedStats = localStorage.getItem('wordgame_stats');
         if (savedStats) {
           setStats(JSON.parse(savedStats));
-        }
-        const savedStage = localStorage.getItem('wordgame_stage');
-        if (savedStage) {
-          setCurrentStage(parseInt(savedStage, 10));
         }
       }, []);
 
@@ -379,7 +381,6 @@
         playSound('click');
         const nextStageIndex = currentStage + 1;
         setCurrentStage(nextStageIndex);
-        localStorage.setItem('wordgame_stage', nextStageIndex.toString());
         
         // Reset board for new word
         setGuesses(Array(MAX_ATTEMPTS).fill(''));
@@ -393,7 +394,6 @@
       const handleFullReset = () => {
         playSound('click');
         setCurrentStage(0);
-        localStorage.setItem('wordgame_stage', '0');
         setGuesses(Array(MAX_ATTEMPTS).fill(''));
         setCurrentGuess('');
         setCurrentRow(0);

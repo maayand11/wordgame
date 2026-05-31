@@ -57,7 +57,7 @@
 
   <!-- React Code with Inline SVG Icons for absolute reliability without external library dependencies -->
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
 
     const STAGES = ["תמונה", "רחבה"];
 
@@ -112,9 +112,16 @@
       const [toastMessage, setToastMessage] = useState(null);
       const [soundEnabled, setSoundEnabled] = useState(true);
       const [stats, setStats] = useState({ played: 0, won: 0, streak: 0 });
+      const [isSubmitting, setIsSubmitting] = useState(false);
 
       const TARGET_WORD = STAGES[currentStage] || STAGES[0];
       const WORD_LENGTH = TARGET_WORD.length;
+
+      // Create a reference to current state to prevent stale closure issues in keydown listener
+      const stateRef = useRef({ currentGuess, currentRow, gameStatus, showInstructions, currentStage, isSubmitting });
+      useEffect(() => {
+        stateRef.current = { currentGuess, currentRow, gameStatus, showInstructions, currentStage, isSubmitting };
+      }, [currentGuess, currentRow, gameStatus, showInstructions, currentStage, isSubmitting]);
 
       // Load statistics and stage from local storage on mount
       useEffect(() => {
@@ -265,64 +272,53 @@
         draw();
       };
 
-      // Keypress listener for physical keyboard
-      useEffect(() => {
-        const handleKeyDown = (e) => {
-          if (gameStatus !== 'IN_PROGRESS' || showInstructions) return;
-
-          const key = e.key;
-
-          if (key === 'Enter') {
-            handleSubmitGuess();
-          } else if (key === 'Backspace') {
-            handleDeleteChar();
-          } else {
-            // Match Hebrew letters (including final forms)
-            const isHebrew = /^[\u05d0-\u05ea]$/.test(key);
-            if (isHebrew) {
-              handleInputChar(key);
-            }
-          }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-      }, [currentGuess, currentRow, gameStatus, showInstructions, currentStage]);
-
       // Handle letter inputs
       const handleInputChar = (char) => {
-        if (currentGuess.length < WORD_LENGTH) {
+        if (stateRef.current.currentGuess.length < WORD_LENGTH) {
           playSound('pop');
           setCurrentGuess(prev => prev + char);
         }
       };
 
       const handleDeleteChar = () => {
-        if (currentGuess.length > 0) {
+        if (stateRef.current.currentGuess.length > 0) {
           playSound('click');
           setCurrentGuess(prev => prev.slice(0, -1));
         }
       };
 
       const handleSubmitGuess = () => {
+        const { currentGuess, currentRow, gameStatus, showInstructions, isSubmitting } = stateRef.current;
+        
+        // Prevent double submit triggers
+        if (isSubmitting || gameStatus !== 'IN_PROGRESS' || showInstructions) return;
+
+        // Blur any focused elements in the browser to prevent physical keyboard "Enter" double firing clicked buttons
+        if (document.activeElement) {
+          document.activeElement.blur();
+        }
+
+        // Strict validation: Don't progress unless word is fully completed!
         if (currentGuess.length < WORD_LENGTH) {
           playSound('error');
           setShakeRow(currentRow);
           showToast('המילה קצרה מדי! חסרות אותיות');
           setTimeout(() => setShakeRow(null), 300);
-          return;
+          return; // Strictly halts execution, does not use or skip attempt
         }
+
+        setIsSubmitting(true);
 
         // Process guess
         const newGuesses = [...guesses];
         newGuesses[currentRow] = currentGuess;
         setGuesses(newGuesses);
 
-        // Turn reveal is handled in UI with staggered timing, but game state transitions here
         const isWin = currentGuess === TARGET_WORD;
         const isLose = !isWin && currentRow === MAX_ATTEMPTS - 1;
 
         setTimeout(() => {
+          setIsSubmitting(false);
           if (isWin) {
             playSound('success');
             triggerConfetti();
@@ -359,6 +355,33 @@
           }
         }, WORD_LENGTH * 250); // wait for flip animations to complete
       };
+
+      // Keypress listener for physical keyboard (bound securely with refs)
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          const { gameStatus, showInstructions, isSubmitting } = stateRef.current;
+          if (gameStatus !== 'IN_PROGRESS' || showInstructions || isSubmitting) return;
+
+          const key = e.key;
+
+          if (key === 'Enter') {
+            e.preventDefault();
+            handleSubmitGuess();
+          } else if (key === 'Backspace') {
+            e.preventDefault();
+            handleDeleteChar();
+          } else {
+            // Match Hebrew letters (including final forms)
+            const isHebrew = /^[\u05d0-\u05ea]$/.test(key);
+            if (isHebrew) {
+              handleInputChar(key);
+            }
+          }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, []);
 
       // Move to Next Stage
       const handleNextStage = () => {
@@ -436,6 +459,14 @@
         return statuses;
       };
 
+      // Wrapper function to blur focus from button after click to prevent physical Enter key from re-triggering it
+      const handleKeyClick = (e, callback) => {
+        if (e && e.currentTarget) {
+          e.currentTarget.blur();
+        }
+        callback();
+      };
+
       return (
         <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden select-none" dir="rtl">
           
@@ -446,14 +477,14 @@
           <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => { playSound('click'); setShowInstructions(true); }}
+                onClick={(e) => handleKeyClick(e, () => { playSound('click'); setShowInstructions(true); })}
                 className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-300 hover:text-white"
                 title="איך משחקים?"
               >
                 <HelpCircleIcon />
               </button>
               <button 
-                onClick={() => { setSoundEnabled(!soundEnabled); playSound('click'); }}
+                onClick={(e) => handleKeyClick(e, () => { setSoundEnabled(!soundEnabled); playSound('click'); })}
                 className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-300 hover:text-white"
                 title={soundEnabled ? "השתק צלילים" : "הפעל צלילים"}
               >
@@ -472,7 +503,7 @@
 
             <div className="flex items-center gap-2">
               <button 
-                onClick={handleResetCurrentStage}
+                onClick={(e) => handleKeyClick(e, handleResetCurrentStage)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-colors shadow-sm"
                 title="אתחל שלב נוכחי"
               >
@@ -567,14 +598,14 @@
           <footer className="w-full max-w-xl mx-auto px-2 pb-6 pt-2">
             <div className="flex flex-col gap-1.5">
               {keyboardRows.map((row, rIdx) => (
-                <div key={rIdx} className="flex justify-center gap-1">
+                <div key={rIdx} className="flex justify-center gap-1" dir="ltr">
                   {row.map((char) => {
                     const bgClass = 'bg-slate-800 text-slate-100 hover:bg-slate-700 active:bg-slate-600 border border-slate-700/30';
 
                     return (
                       <button
                         key={char}
-                        onClick={() => handleInputChar(char)}
+                        onClick={(e) => handleKeyClick(e, () => handleInputChar(char))}
                         disabled={gameStatus !== 'IN_PROGRESS'}
                         className={`flex-1 min-w-[28px] max-w-[46px] h-11 md:h-12 flex items-center justify-center text-sm md:text-base font-bold rounded-md transition-colors ${bgClass} active:scale-95`}
                       >
@@ -588,14 +619,14 @@
               {/* Action Row - Enter & Backspace */}
               <div className="flex justify-center gap-1.5 mt-1">
                 <button
-                  onClick={handleSubmitGuess}
+                  onClick={(e) => handleKeyClick(e, handleSubmitGuess)}
                   disabled={gameStatus !== 'IN_PROGRESS'}
                   className="px-6 h-12 flex items-center justify-center bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-500 text-white text-sm font-extrabold rounded-lg shadow transition-colors"
                 >
                   אישור
                 </button>
                 <button
-                  onClick={handleDeleteChar}
+                  onClick={(e) => handleKeyClick(e, handleDeleteChar)}
                   disabled={gameStatus !== 'IN_PROGRESS'}
                   className="px-6 h-12 flex items-center justify-center bg-rose-900/80 hover:bg-rose-800 active:bg-rose-700 text-white text-sm font-bold rounded-lg shadow transition-colors"
                 >
@@ -626,7 +657,7 @@
                   כעת אתם מוכנים לעבור לשלב הבא.
                 </p>
                 <button
-                  onClick={handleNextStage}
+                  onClick={(e) => handleKeyClick(e, handleNextStage)}
                   className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:from-emerald-600 active:to-teal-600 text-slate-950 font-black rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <span>עבור לשלב {currentStage + 2}</span>
@@ -643,12 +674,19 @@
                 <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 flex items-center justify-center rounded-full mb-4">
                   <AwardIcon size={36} />
                 </div>
-                <h2 className="text-2xl font-black text-emerald-400 mb-1">ניצחתם במשחק! 🏆</h2>
-                <p className="text-slate-300 text-sm mb-6">
-                  השלמתם בהצלחה את כל {STAGES.length} השלבים ופיצחתם את כל המילים הסודיות!
-                </p>
+                <h2 className="text-2xl font-black text-emerald-400 mb-2">ניצחתם במשחק! 🏆</h2>
+                
+                <div className="space-y-1 mb-6">
+                  <p className="text-slate-200 text-lg font-bold">
+                    זהיתם עוד תועלת למערכת Focus Crm!
+                  </p>
+                  <p className="text-emerald-400 text-xl font-black">
+                    תמונה רחבה
+                  </p>
+                </div>
+
                 <button
-                  onClick={handleFullReset}
+                  onClick={(e) => handleKeyClick(e, handleFullReset)}
                   className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:from-emerald-600 active:to-teal-600 text-slate-950 font-black rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <RefreshCwIcon />
@@ -668,7 +706,7 @@
                 <h2 className="text-2xl font-black text-rose-400 mb-1">לא נורא!</h2>
                 <p className="text-slate-300 text-sm mb-6">הניסיונות נגמרו בשלב זה, אך תמיד אפשר לנסות שוב ולנצח.</p>
                 <button
-                  onClick={handleResetCurrentStage}
+                  onClick={(e) => handleKeyClick(e, handleResetCurrentStage)}
                   className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:from-emerald-600 active:to-teal-600 text-slate-950 font-black rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <RefreshCwIcon />
@@ -689,7 +727,7 @@
                     <span>איך משחקים?</span>
                   </h2>
                   <button 
-                    onClick={() => { playSound('click'); setShowInstructions(false); }}
+                    onClick={(e) => handleKeyClick(e, () => { playSound('click'); setShowInstructions(false); })}
                     className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
                   >
                     <XIcon size={20} />
@@ -750,7 +788,7 @@
                 </div>
 
                 <button
-                  onClick={() => { playSound('success'); setShowInstructions(false); }}
+                  onClick={(e) => handleKeyClick(e, () => { playSound('success'); setShowInstructions(false); })}
                   className="mt-6 w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
                 >
                   <CheckIcon />

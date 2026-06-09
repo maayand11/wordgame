@@ -468,10 +468,10 @@
           {/* Confetti canvas */}
           <canvas id="confetti-canvas" className="absolute top-0 left-0 w-full h-full pointer-events-none z-40" />
 
-          {/* Top Header Navbar - Redesigned with absolute 3-column CSS grid to guarantee absolute centering */}
-          <header className="grid grid-cols-3 items-center border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30 px-3 py-2.5 md:py-3">
-            {/* Column 1: Left Actions */}
-            <div className="flex items-center gap-1.5 md:gap-2 justify-start">
+          {/* Top Header Navbar - Optimized to allow full title expansion on a single line in mobile */}
+          <header className="relative flex items-center justify-between border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30 px-4 py-3 min-h-[58px]">
+            {/* Left Actions */}
+            <div className="flex items-center gap-1.5 md:gap-2 z-10">
               <button 
                 onClick={(e) => handleKeyClick(e, () => { playSound('click'); setShowInstructions(true); })}
                 className="p-1.5 hover:bg-slate-800 rounded-full transition-colors text-slate-300 hover:text-white"
@@ -488,28 +488,18 @@
               </button>
             </div>
 
-            {/* Column 2: Centered Title without the target icon/shape */}
-            <div className="text-center px-1 flex flex-col items-center justify-center">
-              <h1 className="text-xs sm:text-sm md:text-xl lg:text-2xl font-black tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-300 leading-tight">
-                <span className="block md:inline">מי ה-PRO הראשון</span>{' '}
-                <span className="block md:inline">שיגלה את המסר?</span>
+            {/* Centered Title - Absolutely centered to guarantee symmetry and allow maximum width */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-16">
+              <h1 className="text-[13px] xs:text-sm sm:text-base md:text-xl lg:text-2xl font-black tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-300 whitespace-nowrap leading-none">
+                מי ה-PRO הראשון שיגלה את המסר?
               </h1>
-              <div className="text-[9px] md:text-[10px] text-slate-400 font-semibold tracking-wide mt-0.5">
+              <div className="text-[9px] md:text-[10px] text-slate-400 font-semibold tracking-wide mt-1.5">
                 שלב {currentStage + 1} מתוך {STAGES.length}
               </div>
             </div>
 
-            {/* Column 3: Right Actions */}
-            <div className="flex items-center gap-2 justify-end">
-              <button 
-                onClick={(e) => handleKeyClick(e, handleResetCurrentStage)}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-colors shadow-sm"
-                title="אתחל שלב נוכחי"
-              >
-                <RefreshCwIcon />
-                <span>איפוס</span>
-              </button>
-            </div>
+            {/* Empty Right Placeholder to maintain symmetrical flex layout */}
+            <div className="w-16 h-8 z-10 pointer-events-none"></div>
           </header>
 
           {/* Game main Area */}
@@ -728,10 +718,9 @@
             <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
                 
-                {/* Top Section of Instructions Modal - Challenge header configured to align and wrap perfectly centered on all devices */}
+                {/* Top Section of Instructions Modal - Completely centered and without the help/question mark icon */}
                 <div className="flex items-center justify-center border-b border-slate-800 pb-4 mb-4 relative">
-                  <h2 className="text-sm sm:text-base md:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 flex items-center justify-center gap-2 leading-tight px-8 text-center">
-                    <span className="text-emerald-400 block shrink-0"><HelpCircleIcon /></span>
+                  <h2 className="text-sm sm:text-base md:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 flex items-center justify-center leading-tight px-8 text-center" title="מי הPRO הראשון שיגלה את המסר?">
                     <span className="text-center block">
                       <span className="block sm:inline">מי ה-PRO הראשון</span>{' '}
                       <span className="block sm:inline">שיגלה את המסר?</span>
